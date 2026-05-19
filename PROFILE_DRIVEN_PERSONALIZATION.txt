@@ -1,0 +1,615 @@
+PROFILE-DRIVEN PERSONALIZATION SYSTEM
+=====================================
+
+CURRENT STATE:
+✅ Settings tab stores user profile
+   - Name: Timileyin Ajuwon
+   - Role: School teacher
+   - Location: Ibadan, Nigeria
+   - Services: "AI workflow automation, no-code tool implementation..."
+   - Target Market: "Startups, SMEs, growing businesses..."
+
+PROBLEM:
+❌ Profile stored but NOT USED
+❌ Research doesn't mention user's services
+❌ Pain points not aligned with what user offers
+❌ Emails are generic, not personalized to user's value
+
+SOLUTION:
+✅ Make profile drive EVERYTHING:
+   - Research finds companies that MATCH target market
+   - Pain points identified based on what you FIX
+   - Emails mention YOUR services + their pain
+   - Follow-ups reference YOUR expertise
+
+---
+
+HOW IT SHOULD WORK:
+
+USER FILLS PROFILE:
+- Name: Timileyin Ajuwon
+- Services: "AI automation, operations optimization, process documentation"
+- Target: "Startups, SMEs in Africa"
+- Location: Ibadan, Nigeria
+
+USER SEARCHES: "Paystack"
+
+SYSTEM NOW DOES:
+1. Research Paystack
+2. Identify pain points RELEVANT to your services
+   "They're hiring 50 engineers (operations complexity)"
+   "Growing fast (need process automation)"
+   "Scaling ops (your expertise!)"
+
+3. Generate email that mentions:
+   "Timileyin here - I help companies like yours
+    automate operations and scale teams.
+    Saw you're growing fast..."
+
+4. Sign off with:
+   "Timileyin Ajuwon
+    AI Workflow Automation Specialist
+    Ibadan, Nigeria
+    linkedin.com/in/timileyin-ajuwon-53075aa8/"
+
+---
+
+IMPLEMENTATION:
+
+1. PROFILE CONTEXT SYSTEM
+
+Create: src/utils/profileContext.js
+
+```javascript
+import { createContext, useState, useContext } from 'react';
+
+const ProfileContext = createContext();
+
+export function ProfileProvider({ children }) {
+  const [profile, setProfile] = useState(() => {
+    const saved = localStorage.getItem('userProfile');
+    return saved ? JSON.parse(saved) : {
+      fullName: '',
+      role: '',
+      location: '',
+      linkedinUrl: '',
+      services: '',
+      targetMarket: ''
+    };
+  });
+
+  const updateProfile = (newProfile) => {
+    setProfile(newProfile);
+    localStorage.setItem('userProfile', JSON.stringify(newProfile));
+  };
+
+  return (
+    <ProfileContext.Provider value={{ profile, updateProfile }}>
+      {children}
+    </ProfileContext.Provider>
+  );
+}
+
+export function useProfile() {
+  return useContext(ProfileContext);
+}
+```
+
+2. UPDATED RESEARCH FUNCTION
+
+Modify: netlify/functions/research-enhanced.js
+
+```javascript
+exports.handler = async (event) => {
+  const { companyName, userProfile } = JSON.parse(event.body);
+  
+  const client = new Anthropic();
+  
+  // Profile context passed to Claude
+  const profileContext = `
+    User Profile (for personalization):
+    - Name: ${userProfile.fullName}
+    - Services: ${userProfile.services}
+    - Target Market: ${userProfile.targetMarket}
+    - Location: ${userProfile.location}
+    
+    Task: When identifying pain points, focus on areas where
+    the user's services could help.
+  `;
+  
+  const researchPrompt = `
+    ${profileContext}
+    
+    Research ${companyName}:
+    
+    1. COMPANY OVERVIEW
+       - What do they do?
+       - Size, funding, growth
+       - Key markets
+    
+    2. HIRING SIGNALS & OPERATIONAL COMPLEXITY
+       - Recent job postings
+       - Team growth (indicates scaling challenges)
+       - Technical hiring (need for automation?)
+    
+    3. INDUSTRY TRENDS
+       - What's happening in their space?
+       - Market growth/shifts
+       - Competitive pressure
+    
+    4. PAIN POINTS (ALIGNED TO USER'S SERVICES)
+       - What problems do they likely face?
+       - Which relate to: ${userProfile.services}?
+       - Why would they need help scaling/automating?
+    
+    5. EXECUTIVES
+       - Top 3 executives
+       - Their focus areas
+       - Recent activities
+    
+    IMPORTANT: Frame pain points in terms of 
+    "${userProfile.services}" expertise.
+    
+    Return as JSON:
+    {
+      company_overview: "...",
+      hiring_signals: "Hiring 50 engineers (indicates ops scaling needs)",
+      industry_trends: "...",
+      pain_points: [
+        "Operations scaling (user can automate)",
+        "Team coordination (user can document SOP)",
+        ...
+      ],
+      executives: [
+        {name, title, focus}
+      ],
+      fit_score: 0.85,
+      fit_reason: "Scaling operations - exactly what user specializes in"
+    }
+  `;
+  
+  const response = await client.messages.create({
+    model: 'claude-3-5-sonnet-20241022',
+    max_tokens: 2048,
+    messages: [
+      { role: 'user', content: researchPrompt }
+    ]
+  });
+  
+  const research = JSON.parse(response.content[0].text);
+  
+  return {
+    statusCode: 200,
+    body: JSON.stringify({
+      ...research,
+      personalized: true,
+      user_services: userProfile.services
+    })
+  };
+};
+```
+
+3. UPDATED EMAIL GENERATION
+
+Modify: netlify/functions/business-developer-agent.js
+
+```javascript
+exports.handler = async (event) => {
+  const { companyName, personName, role, research, userProfile } = JSON.parse(event.body);
+  
+  const client = new Anthropic();
+  
+  const prompt = `
+    You are a 25-year business development expert.
+    You're writing on behalf of ${userProfile.fullName}.
+    
+    About the person reaching out:
+    - Name: ${userProfile.fullName}
+    - Services: ${userProfile.services}
+    - Location: ${userProfile.location}
+    - Target: ${userProfile.targetMarket}
+    - LinkedIn: ${userProfile.linkedinUrl}
+    
+    Target recipient:
+    - Name: ${personName}
+    - Role: ${role}
+    - Company: ${companyName}
+    
+    Research findings:
+    ${JSON.stringify(research, null, 2)}
+    
+    Task: Write 3 personalized cold emails from ${userProfile.fullName} to ${personName}.
+    
+    KEY REQUIREMENTS:
+    1. Mention their pain points from research
+    2. Explain how ${userProfile.services} solves those pain points
+    3. Reference their company's growth/situation
+    4. Personalize with their name and role
+    5. Mention user's location (${userProfile.location}) if relevant to context
+    6. Ask for 15-min chat
+    
+    Email variants:
+    
+    VARIANT A (Formal, Problem-focused):
+    - Tone: Professional consultant
+    - Focus: Their pain points
+    - Hook: "Saw you're [problem]. We help [solution]"
+    
+    VARIANT B (Casual, Opportunity-focused):
+    - Tone: Peer-to-peer insight sharing
+    - Focus: Their growth opportunity
+    - Hook: "Love what you're building. Here's a thought..."
+    
+    VARIANT C (Data-driven, Expertise-focused):
+    - Tone: Data and case studies
+    - Focus: Proven approach to their problem
+    - Hook: "Companies like yours typically face [X]. We reduce it by [Y]"
+    
+    Sign all emails with:
+    --
+    ${userProfile.fullName}
+    ${userProfile.role}
+    📍 ${userProfile.location}
+    ${userProfile.linkedinUrl ? '🔗 ' + userProfile.linkedinUrl : ''}
+    
+    Return ONLY valid JSON:
+    {
+      variant_a: {
+        subject: "...",
+        body: "..."
+      },
+      variant_b: {
+        subject: "...",
+        body: "..."
+      },
+      variant_c: {
+        subject: "...",
+        body: "..."
+      },
+      opening_hook: "Specific personalization reason"
+    }
+  `;
+  
+  const response = await client.messages.create({
+    model: 'claude-3-5-sonnet-20241022',
+    max_tokens: 3000,
+    messages: [
+      { role: 'user', content: prompt }
+    ]
+  });
+  
+  const emailVariants = JSON.parse(response.content[0].text);
+  
+  return {
+    statusCode: 200,
+    body: JSON.stringify({
+      success: true,
+      person: personName,
+      role: role,
+      company: companyName,
+      from: userProfile.fullName,
+      emails: emailVariants
+    })
+  };
+};
+```
+
+4. UPDATED AGENT COMPONENT
+
+Modify: src/components/Agent.jsx
+
+```jsx
+import { useProfile } from '../utils/profileContext';
+import { useState } from 'react';
+
+export default function Agent() {
+  const { profile } = useProfile();
+  const [company, setCompany] = useState('');
+  const [research, setResearch] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  if (!profile.fullName) {
+    return (
+      <div className="setup-prompt">
+        <h3>⚙️ Set up your profile first</h3>
+        <p>Go to Settings to add your name, services, and target market.</p>
+        <p>This helps Claude tailor research and emails to YOUR business.</p>
+        <button onClick={() => window.location.hash = '#settings'}>
+          Go to Settings
+        </button>
+      </div>
+    );
+  }
+
+  const handleResearch = async () => {
+    setLoading(true);
+    
+    // Pass profile to backend
+    const researchData = await fetch('/.netlify/functions/research-enhanced', {
+      method: 'POST',
+      body: JSON.stringify({
+        companyName: company,
+        userProfile: profile
+      })
+    }).then(r => r.json());
+    
+    setResearch(researchData);
+    setLoading(false);
+  };
+
+  return (
+    <div className="agent-container">
+      <div className="agent-header">
+        <h2>⚡ AI Research Agent</h2>
+        <p>Personalizing research for <strong>{profile.fullName}</strong></p>
+      </div>
+      
+      <input
+        type="text"
+        placeholder="Enter company name (e.g., Paystack)"
+        value={company}
+        onChange={(e) => setCompany(e.target.value)}
+      />
+      <button onClick={handleResearch} disabled={loading}>
+        {loading ? 'Researching...' : 'Research & Generate Email'}
+      </button>
+
+      {research && (
+        <div className="research-section">
+          <h3>📊 Research Findings</h3>
+          
+          {/* Fit Score */}
+          <div className="fit-score">
+            <strong>Fit Score: {Math.round(research.fit_score * 100)}%</strong>
+            <p>{research.fit_reason}</p>
+          </div>
+          
+          <div className="research-card">
+            <h4>Company Overview</h4>
+            <p>{research.company_overview}</p>
+          </div>
+          
+          <div className="research-card">
+            <h4>Hiring Signals</h4>
+            <p>{research.hiring_signals}</p>
+          </div>
+          
+          <div className="research-card">
+            <h4>💡 Pain Points (Aligned to Your Services)</h4>
+            <ul>
+              {research.pain_points.map((point, i) => (
+                <li key={i}>{point}</li>
+              ))}
+            </ul>
+            <p className="note">
+              These pain points match your expertise in: {profile.services}
+            </p>
+          </div>
+          
+          <div className="research-card">
+            <h4>Key Executives</h4>
+            {research.executives.map((exec, i) => (
+              <div key={i}>
+                <strong>{exec.name}</strong> - {exec.title}
+                <p>Focus: {exec.focus}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Email variants would show here with personalization */}
+    </div>
+  );
+}
+```
+
+5. UPDATED SETTINGS COMPONENT
+
+Modify: src/components/Settings.jsx
+
+```jsx
+import { useProfile } from '../utils/profileContext';
+import { useState } from 'react';
+
+export default function Settings() {
+  const { profile, updateProfile } = useProfile();
+  const [formData, setFormData] = useState(profile);
+  const [saved, setSaved] = useState(false);
+
+  const handleChange = (field, value) => {
+    setFormData({ ...formData, [field]: value });
+  };
+
+  const handleSave = () => {
+    updateProfile(formData);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+  };
+
+  return (
+    <div className="settings-container">
+      <h2>⚙️ Your Profile</h2>
+      <p className="description">
+        This information personalizes all research, pain point identification, and emails.
+        Claude will tailor everything to your services and target market.
+      </p>
+
+      <div className="form-group">
+        <label>YOUR FULL NAME</label>
+        <input
+          type="text"
+          value={formData.fullName}
+          onChange={(e) => handleChange('fullName', e.target.value)}
+          placeholder="e.g., Timileyin Ajuwon"
+        />
+        <small>Used to sign off emails</small>
+      </div>
+
+      <div className="form-group">
+        <label>YOUR ROLE / TITLE</label>
+        <input
+          type="text"
+          value={formData.role}
+          onChange={(e) => handleChange('role', e.target.value)}
+          placeholder="e.g., AI Operations Specialist"
+        />
+        <small>Shows in emails and footer</small>
+      </div>
+
+      <div className="form-group">
+        <label>YOUR LOCATION</label>
+        <input
+          type="text"
+          value={formData.location}
+          onChange={(e) => handleChange('location', e.target.value)}
+          placeholder="e.g., Ibadan, Nigeria"
+        />
+        <small>Adds local context to outreach</small>
+      </div>
+
+      <div className="form-group">
+        <label>LINKEDIN PROFILE URL</label>
+        <input
+          type="text"
+          value={formData.linkedinUrl}
+          onChange={(e) => handleChange('linkedinUrl', e.target.value)}
+          placeholder="https://linkedin.com/in/yourprofile"
+        />
+        <small>Linked in emails for credibility</small>
+      </div>
+
+      <div className="form-group">
+        <label>YOUR SERVICES</label>
+        <textarea
+          value={formData.services}
+          onChange={(e) => handleChange('services', e.target.value)}
+          placeholder="e.g., AI workflow automation, operations optimization, process documentation"
+        />
+        <small>
+          Used to identify relevant pain points in prospect companies.
+          Claude will only highlight problems you can solve.
+        </small>
+      </div>
+
+      <div className="form-group">
+        <label>YOUR TARGET MARKET</label>
+        <textarea
+          value={formData.targetMarket}
+          onChange={(e) => handleChange('targetMarket', e.target.value)}
+          placeholder="e.g., Startups, SMEs, and growing businesses in Africa that need operations help"
+        />
+        <small>
+          Helps Claude identify the best fit companies.
+          Research will score companies based on this.
+        </small>
+      </div>
+
+      <div className="actions">
+        <button onClick={handleSave} className="save-btn">
+          💾 Save Profile
+        </button>
+        {saved && <span className="saved-msg">✅ Profile saved!</span>}
+      </div>
+
+      <div className="impact-info">
+        <h4>How Your Profile Affects the App:</h4>
+        <ul>
+          <li>🎯 <strong>Research:</strong> Pain points identified based on your services</li>
+          <li>💌 <strong>Emails:</strong> Personalized with your name, location, and expertise</li>
+          <li>🔍 <strong>Fit Scoring:</strong> Companies ranked by how well they match your target</li>
+          <li>📍 <strong>Localization:</strong> Your location mentioned for African market context</li>
+          <li>🔗 <strong>Credibility:</strong> LinkedIn URL included for trust</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+```
+
+---
+
+COMPLETE FLOW WITH PROFILE:
+
+1. USER GOES TO SETTINGS
+   Fills in:
+   - Name: Timileyin Ajuwon
+   - Services: "AI automation, operations optimization, no-code tools"
+   - Target: "Startups, SMEs in Africa"
+   - Location: Ibadan, Nigeria
+   - LinkedIn: linkedin.com/in/timileyin-ajuwon-53075aa8
+
+2. USER SEARCHES: "Paystack"
+
+3. SYSTEM DOES:
+   a) Claude researches with context:
+      "Find pain points relevant to AI automation + ops optimization"
+      
+   b) Research returns:
+      - Pain points: "Scaling ops", "Team coordination", "Process bottlenecks"
+      - Fit score: 92% (they're exactly your target market)
+      - Reason: "Growing African fintech - perfect for operations automation"
+   
+   c) Email generated mentions:
+      "Hi [name],
+       
+       I help companies like Paystack automate operations and scale teams.
+       Saw you're growing fast and hiring engineers...
+       
+       [personalized details about their scaling challenges]
+       
+       Worth a 15-min chat?
+       
+       Timileyin Ajuwon
+       AI Operations Specialist
+       📍 Ibadan, Nigeria
+       linkedin.com/in/timileyin-ajuwon-53075aa8"
+
+4. USER SENDS EMAIL
+   High response rate because:
+   ✅ Email is personalized (their name + role)
+   ✅ Mentions relevant pain points (their situation)
+   ✅ Shows how you solve it (your services)
+   ✅ Includes local context (your location)
+   ✅ Has credibility (LinkedIn)
+
+---
+
+DEPLOYMENT:
+
+1. Create/Modify files:
+   ✅ src/utils/profileContext.js (new)
+   ✅ src/components/Settings.jsx (update)
+   ✅ src/components/Agent.jsx (update)
+   ✅ netlify/functions/research-enhanced.js (update)
+   ✅ netlify/functions/business-developer-agent.js (update)
+
+2. Update App.jsx:
+   ```jsx
+   import { ProfileProvider } from './utils/profileContext';
+   
+   function App() {
+     return (
+       <ProfileProvider>
+         {/* your existing app */}
+       </ProfileProvider>
+     );
+   }
+   ```
+
+3. Git push → Auto-deploys
+
+---
+
+RESULT:
+
+Profile-driven system where:
+✅ Research changes based on your services
+✅ Pain points identified for what you FIX
+✅ Emails mention YOUR expertise + THEIR problem
+✅ Everything signs off with YOUR info
+✅ Companies scored by how well they fit YOUR market
+
+This is why profile matters - it makes the entire outreach 10x more effective!
+
+Ready to build?

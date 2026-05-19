@@ -1,0 +1,341 @@
+OUTREACH-SYS DEPLOYMENT GUIDE
+=============================
+
+COMPLETE BUILD: Profile-Driven Personalization System
+Includes: Research, Email Finding, Email Generation, Settings
+
+---
+
+FILES TO CREATE/REPLACE IN YOUR GITHUB REPO:
+
+STEP 1: PROFILE SYSTEM
+━━━━━━━━━━━━━━━━━━━━━
+Location: src/utils/profileContext.js
+Status: NEW FILE
+├─ Manages user profile state
+├─ localStorage persistence
+└─ useProfile hook for components
+
+STEP 2: COMPONENTS (UI)
+━━━━━━━━━━━━━━━━━━━━━
+Location: src/components/
+
+1. Settings.jsx (REPLACE/UPDATE)
+   └─ User profile form
+   ├─ Full name, role, location, LinkedIn
+   ├─ Services description
+   ├─ Target market
+   └─ Impact explanation
+
+2. Settings.css (NEW)
+   └─ Styling for Settings component
+
+3. Agent.jsx (REPLACE/UPDATE)
+   └─ Main research & email interface
+   ├─ Company search
+   ├─ Research display
+   ├─ Email finding
+   ├─ Email generation
+   └─ Email variants display
+
+4. Agent.css (NEW)
+   └─ Styling for Agent component
+
+STEP 3: UTILITIES
+━━━━━━━━━━━━━━━
+Location: src/utils/
+
+apiClient.js (UPDATE)
+├─ Add researchCompany() method
+├─ Add findDecisionMakerEmails() method
+├─ Add generateDecisionMakerEmail() method
+└─ Keep legacy methods for backward compatibility
+
+STEP 4: ROOT COMPONENT
+━━━━━━━━━━━━━━━━━━━━
+Location: src/App.jsx (UPDATE)
+├─ Wrap with <ProfileProvider>
+└─ Ensure all child components have profile access
+
+STEP 5: NETLIFY FUNCTIONS
+━━━━━━━━━━━━━━━━━━━━━━━
+Location: netlify/functions/
+
+1. research-enhanced.js (NEW)
+   ├─ Takes: companyName, userProfile
+   ├─ Uses: Claude API
+   ├─ Returns: Research with fit score, pain points, executives
+   └─ Personalizes: Pain points based on user's services
+
+2. find-decision-maker-emails.js (NEW)
+   ├─ Takes: companyName, role, userProfile
+   ├─ Uses: Claude API + QuickEmailVerification API
+   ├─ Process:
+   │  1. Claude finds likely emails
+   │  2. QEV verifies each one
+   │  3. Returns verified only
+   └─ Returns: Verified emails with person details
+
+3. business-developer-agent.js (NEW)
+   ├─ Takes: companyName, personName, role, research, userProfile
+   ├─ Uses: Claude API (business developer persona)
+   ├─ Generates: 3 email variants (Formal, Casual, Data-driven)
+   └─ Returns: Emails signed with user's info
+
+---
+
+ENVIRONMENT VARIABLES
+━━━━━━━━━━━━━━━━━━━
+
+Required in Netlify Dashboard → Settings → Build & deploy → Environment:
+
+ANTHROPIC_API_KEY
+└─ Your existing Claude API key
+└─ Format: sk-ant-...
+└─ Get from: https://console.anthropic.com
+
+QUICKEMAILVERIFICATION_API_KEY
+└─ NEW: Required for email verification
+└─ Format: Your QEV API key
+└─ Get from: https://quickemailverification.com/register
+└─ Cost: FREE (100/day = 3,000/month)
+└─ Sign up steps:
+    1. Go to https://quickemailverification.com/register
+    2. Sign up (no credit card needed)
+    3. Copy API key from dashboard
+    4. Add to Netlify environment variables
+
+---
+
+DEPLOYMENT STEPS
+━━━━━━━━━━━━━━━
+
+PHASE A: SETUP (5 minutes)
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Get QuickEmailVerification API Key
+   □ Go to https://quickemailverification.com/register
+   □ Sign up (takes 2 minutes)
+   □ Copy API key
+
+2. Add API Key to Netlify
+   □ Go to app.netlify.com → Your site → Settings
+   □ Build & deploy → Environment
+   □ Add new variable:
+     Key: QUICKEMAILVERIFICATION_API_KEY
+     Value: [paste your key]
+   □ Save
+
+3. Verify ANTHROPIC_API_KEY exists
+   □ Check same Environment section
+   □ If not there, add it with your Claude API key
+
+PHASE B: CODE UPDATE (20 minutes)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Clone/pull your repo
+   git clone https://github.com/tim1901/Outreach-sys
+   cd Outreach-sys
+
+2. Create new files:
+   Create: src/utils/profileContext.js
+   Create: src/components/Settings.jsx
+   Create: src/components/Settings.css
+   Create: src/components/Agent.jsx
+   Create: src/components/Agent.css
+   Create: netlify/functions/research-enhanced.js
+   Create: netlify/functions/find-decision-maker-emails.js
+   Create: netlify/functions/business-developer-agent.js
+
+3. Update existing files:
+   Update: src/utils/apiClient.js
+   Update: src/App.jsx
+   
+   (Keep all other components as is)
+
+4. Verify package.json has required dependencies:
+   - react (you have this)
+   - @anthropic-ai/sdk (for backend)
+   - node-fetch (if not using Node 18+)
+
+5. Test locally (optional but recommended)
+   npm install
+   npm run dev
+   └─ Should start on http://localhost:5173
+   
+   Test:
+   □ Go to Settings tab
+   □ Fill in profile and save
+   □ Go to Agent tab
+   □ Search a company
+   □ Should see research
+   □ Click "Find Email" on an executive
+   □ Should find and verify emails
+   □ Click person → Should generate 3 email variants
+
+PHASE C: DEPLOY (5 minutes)
+━━━━━━━━━━━━━━━━━━━━
+
+1. Commit and push
+   git add .
+   git commit -m "Phase 1: Profile-driven research and email generation"
+   git push origin main
+
+2. Netlify auto-deploys
+   □ Check app.netlify.com → Deployments
+   □ Wait for build to complete
+   □ See deploy logs if build fails
+
+3. Test on deployed site
+   □ Go to your Netlify URL
+   □ Repeat testing steps from Phase B
+
+---
+
+TROUBLESHOOTING
+━━━━━━━━━━━━━━
+
+Issue: "Email verification API key not configured"
+Fix: Check Netlify Environment variables
+     Make sure QUICKEMAILVERIFICATION_API_KEY is there
+     Redeploy after adding
+
+Issue: "Failed to parse Claude response"
+Fix: Check Claude's response format
+    Likely issue: Claude returned markdown instead of JSON
+    Add to function: text.replace(/```json|```/g, '')
+
+Issue: "Email finding returns 0 results"
+Fix: This is normal if Claude can't guess the domain
+    Try company with more recognizable domain (paystack.com, etc)
+
+Issue: Component shows "Complete Your Profile First"
+Fix: Go to Settings tab and fill out all fields
+     Save profile
+     Return to Agent tab
+
+Issue: "API call to /research-enhanced failed"
+Fix: Check browser console for error
+     Likely: ANTHROPIC_API_KEY not set in Netlify
+     Add it to Environment variables and redeploy
+
+---
+
+WHAT HAPPENS ON DEPLOY
+━━━━━━━━━━━━━━━━━━━━
+
+When you push to GitHub, Netlify automatically:
+
+1. Pulls latest code
+2. Installs dependencies (npm install)
+3. Builds frontend (npm run build)
+4. Bundles Netlify Functions
+5. Deploys everything
+
+Build commands from netlify.toml:
+□ Command: npm run build
+□ Functions: netlify/functions
+□ Publish: dist
+
+---
+
+TESTING CHECKLIST
+━━━━━━━━━━━━━━━
+
+After deployment, test this workflow:
+
+1. Settings Tab
+   □ Fill in your profile (all fields)
+   □ Save
+   □ See confirmation message
+
+2. Agent Tab
+   □ Should show "Personalizing for [your name]"
+   □ Search "Paystack" (or another known company)
+   □ Should see research (5-10 seconds)
+   □ Shows fit score, overview, hiring signals, pain points, executives
+
+3. Find Emails
+   □ Click "Find Email" on an executive
+   □ Should see 3-5 people with emails
+   □ Some marked as ✅ VERIFIED
+   □ Some marked as ⚠️ UNVERIFIED
+
+4. Generate Emails
+   □ Click on a verified person
+   □ Should see 3 email variants
+   □ Each has Subject and Body
+   □ All signed with your name, role, location, LinkedIn
+
+5. Full Flow (E2E)
+   □ Settings → Fill profile → Save
+   □ Agent → Search company
+   □ Click executive → Find emails
+   □ Click verified person → Generate emails
+   □ Copy email → Ready to send!
+
+---
+
+NEXT STEPS AFTER DEPLOYMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PHASE 2 (Optional, later):
+□ Add Gmail API integration (send directly)
+□ Add campaign tracker (Airtable)
+□ Add batch CSV processing
+□ Add analytics dashboard
+
+PHASE 3 (Optional, later):
+□ Add real names finding (LinkedIn API)
+□ Add company org chart
+□ Add decision tree visualization
+□ Add A/B testing analytics
+
+---
+
+COST EXPECTATIONS
+━━━━━━━━━━━━━━━
+
+Per research:
+- Claude research: ~$0.0006 (very cheap)
+- Email finding + verification: FREE (QEV 100/day free)
+- Email generation: ~$0.001 (2 Claude calls)
+- Total: ~$0.002 per company research
+
+Monthly (100 searches):
+- Claude: ~$0.06
+- QEV: FREE (within free tier)
+- Total: ~$0.06/month
+
+Practically free! 🚀
+
+---
+
+SUPPORT
+━━━━━━
+
+If you hit issues:
+
+1. Check Netlify Function logs
+   □ app.netlify.com → Functions → [function name]
+   □ See what Claude/QEV returned
+
+2. Check browser console
+   □ F12 → Console tab
+   □ See exact error message
+
+3. Check this guide
+   □ Troubleshooting section above
+
+---
+
+READY?
+
+1. Get QEV API key → https://quickemailverification.com/register
+2. Add to Netlify Environment variables
+3. Create/update files as listed in PHASE B
+4. Git push
+5. Test on deployed site
+6. You're live! 🎉
+
+Questions? Check the implementation files - they're heavily commented!

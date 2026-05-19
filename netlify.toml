@@ -1,0 +1,30 @@
+[build]
+  command = "npm run build"
+  functions = "netlify/functions"
+  publish = "dist"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[functions."research-enhanced"]
+  timeout = 60
+
+[context.production.environment]
+  ANTHROPIC_API_KEY = ""
+  PERPLEXITY_API_KEY = ""
+  APIFY_API_KEY = ""
+  QUICKEMAILVERIFICATION_API_KEY = ""
+
+[context.deploy-preview.environment]
+  ANTHROPIC_API_KEY = ""
+  PERPLEXITY_API_KEY = ""
+  APIFY_API_KEY = ""
+  QUICKEMAILVERIFICATION_API_KEY = ""
+
+[context.branch-deploy.environment]
+  ANTHROPIC_API_KEY = ""
+  PERPLEXITY_API_KEY = ""
+  APIFY_API_KEY = ""
+  QUICKEMAILVERIFICATION_API_KEY = ""
