@@ -26,7 +26,7 @@ exports.handler = async (event) => {
 Return as numbered list format, be specific to their industry/type.`;
 
     const painResponse = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       max_tokens: 200,
       messages: [{ role: 'user', content: painPointsPrompt }]
     });
@@ -62,7 +62,7 @@ TONE: Executive-level, strategic, solution-focused. Show you understand their sp
 Write the email now. Return as JSON: {"emailSubject":"","emailBody":""}`;
 
     const emailResponse = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+     model: 'claude-sonnet-5',
       max_tokens: 600,
       messages: [{ role: 'user', content: emailPrompt }]
     });
